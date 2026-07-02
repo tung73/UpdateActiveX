@@ -1,118 +1,199 @@
 @echo off
-setlocal EnableExtensions EnableDelayedExpansion
+setlocal enabledelayedexpansion
+set EarlyLog=C:\CNTRLPTS\Util\log\activeXDaily_startup_trace.log
+if not exist C:\CNTRLPTS\Util\log\ mkdir C:\CNTRLPTS\Util\log\ 2>nul
+>>%EarlyLog% echo ==================================================
+>>%EarlyLog% echo [%DATE% %TIME%] Script starting
+>>%EarlyLog% echo User=%USERNAME% Computer=%COMPUTERNAME% Session=%SESSIONNAME%
+>>%EarlyLog% echo ScriptPath=%~f0 ScriptDir=%~dp0 CurrentDir=%CD%
+>>%EarlyLog% echo CmdLine=%CMDCMDLINE%
 
 rem ############ Start Clean Temp Files ################
-set "BootstrapLog=C:\CNTRLPTS\Util\log\activeXDaily_startup.log"
-if not exist "C:\CNTRLPTS\Util\log\" mkdir "C:\CNTRLPTS\Util\log\" 2>nul
->>"%BootstrapLog%" echo [%DATE% %TIME%] Starting %~nx0 from "%CD%" as %USERNAME%
-pushd "%~dp0" || (
-	>>"%BootstrapLog%" echo [%DATE% %TIME%] ERROR: failed to change to script folder "%~dp0".
-	exit /b 1
-)
-set "ScratchFile=C:\CNTRLPTS\Util\log\UpdateActiveX_%COMPUTERNAME%_%RANDOM%_%RANDOM%.tmp"
-if not exist ".\sftp\temp\" mkdir ".\sftp\temp\" 2>nul
+>>%EarlyLog% echo [%DATE% %TIME%] Before cd to script folder
+cd %~dp0
+>>%EarlyLog% echo [%DATE% %TIME%] After cd, errorlevel=%ERRORLEVEL%, CurrentDir=%CD%
+>>%EarlyLog% echo [%DATE% %TIME%] Before drive switch to %~d0
+call %~d0
+>>%EarlyLog% echo [%DATE% %TIME%] After drive switch, errorlevel=%ERRORLEVEL%, CurrentDir=%CD%
+>>%EarlyLog% echo [%DATE% %TIME%] Before temp cleanup
+del .\sftp\temp\* /S /Q
+>>%EarlyLog% echo [%DATE% %TIME%] After temp file cleanup, errorlevel=%ERRORLEVEL%
+for /d %%i in (.\sftp\temp\*) do rmdir /s /q "%%i" 
+>>%EarlyLog% echo [%DATE% %TIME%] After temp folder cleanup, errorlevel=%ERRORLEVEL%
 rem ############ Finish Clean Temp Files ################
 
 rem ############ Start Workstation Logging ################
 
-rem # retrieve current date/time in a locale-independent format
-for /f "tokens=1-7" %%A in ('powershell -NoProfile -ExecutionPolicy Bypass -Command "Get-Date -Format 'yyyy MM dd HH mm ss yyyyMMdd'" 2^>nul') do (
-	set "yyyy=%%A"
-	set "mm=%%B"
-	set "dd=%%C"
-	set "hh=%%D"
-	set "mi=%%E"
-	set "ss=%%F"
-	set "yyyymmdd=%%G"
+rem # retrieve current date
+>>%EarlyLog% echo [%DATE% %TIME%] Before DATE/T parse
+FOR /F "TOKENS=1,2 DELIMS= " %%A IN ('DATE/T') DO (
+	set x=%%A
+	set y=%%B
 )
-if not defined yyyymmdd (
-	>>"%BootstrapLog%" echo [%DATE% %TIME%] ERROR: failed to read current date/time.
-	exit /b 1
+>>%EarlyLog% echo [%DATE% %TIME%] After DATE/T parse, errorlevel=%ERRORLEVEL%, x=%x%, y=%y%
+>>%EarlyLog% echo [%DATE% %TIME%] Before first write to scratch file a
+echo %x% | findstr /C:/ > a
+>>%EarlyLog% echo [%DATE% %TIME%] After first write to a, errorlevel=%ERRORLEVEL%
+set /p d1=<a
+>>%EarlyLog% echo [%DATE% %TIME%] After read d1 from a, errorlevel=%ERRORLEVEL%, d1=%d1%
+echo %y% | findstr /C:/ > a
+>>%EarlyLog% echo [%DATE% %TIME%] After second write to a, errorlevel=%ERRORLEVEL%
+set /p d2=<a
+>>%EarlyLog% echo [%DATE% %TIME%] After read d2 from a, errorlevel=%ERRORLEVEL%, d2=%d2%
+if not x%d1%==x (
+	set d=%d1%
 )
-set /a mx=1%mm%-100
-set /a dx=1%dd%-100
-set "RunId=%yyyy%%mm%%dd%%hh%%mi%%ss%_%RANDOM%"
+if not x%d2%==x (
+	set d=%d2%
+)
+>>%EarlyLog% echo [%DATE% %TIME%] Selected date token d=%d%
+
+@echo %d% > a
+>>%EarlyLog% echo [%DATE% %TIME%] Wrote selected date token to a, errorlevel=%ERRORLEVEL%
+FOR /F "TOKENS=1,2,3 eol=/ DELIMS=/ " %%A IN ('type a') DO (
+	set dd=%%A
+	set mm=%%B
+	set yyyy=%%C
+)
+>>%EarlyLog% echo [%DATE% %TIME%] Parsed date parts yyyy=%yyyy%, mm=%mm%, dd=%dd%, errorlevel=%ERRORLEVEL%
+
+set mx=%mm:/0=/%
+set mx=%mm:~1%
+set dx=%dd:/0=/%
+set dx=%dd:~1%
+>>%EarlyLog% echo [%DATE% %TIME%] Initial mx=%mx%, dx=%dx%
+
+if %mm% gtr 9 (
+	set mx=%mm%
+)
+if %dd% gtr 9 (
+	set dx=%dd%
+)
+>>%EarlyLog% echo [%DATE% %TIME%] Final mx=%mx%, dx=%dx%
+
+rem # retrieve current time
+>>%EarlyLog% echo [%DATE% %TIME%] Before TIME/T parse
+FOR /F "TOKENS=1 eol=: DELIMS=: " %%A IN ('TIME/T') DO SET hh=%%A
+FOR /F "TOKENS=2 eol=: DELIMS=: " %%A IN ('TIME/T') DO SET mi=%%A
+>>%EarlyLog% echo [%DATE% %TIME%] Parsed time hh=%hh%, mi=%mi%, errorlevel=%ERRORLEVEL%
 
 set LogFile=C:\CNTRLPTS\Util\log\activeXDaily_%yyyy%%mm%%dd%.log
+>>%EarlyLog% echo [%DATE% %TIME%] LogFile resolved to %LogFile%
 >>%LogFile% echo 
->>%LogFile% echo [%DATE% %TIME%] Startup completed. Scratch file: %ScratchFile%
+>>%LogFile% echo Startup trace log: %EarlyLog%
 
 >>%LogFile% echo Get current version
+>>%EarlyLog% echo [%DATE% %TIME%] Before reading Version.txt
 
 rem # retrieve current ActiveX version
 set /p ver=<C:\CNTRLPTS\Version.txt
+>>%EarlyLog% echo [%DATE% %TIME%] After reading Version.txt, errorlevel=%ERRORLEVEL%, ver=%ver%
 
 >>%LogFile% echo Get Control Point
 rem # retrieve control point code
-findstr /C:CNTRL_PT_CD C:\CNTRLPTS\dc.ini > "%ScratchFile%"
-set /p cntpnt=<"%ScratchFile%"
+>>%EarlyLog% echo [%DATE% %TIME%] Before reading CNTRL_PT_CD from dc.ini
+findstr /C:CNTRL_PT_CD C:\CNTRLPTS\dc.ini > a
+>>%EarlyLog% echo [%DATE% %TIME%] After findstr CNTRL_PT_CD, errorlevel=%ERRORLEVEL%
+set /p cntpnt=<a
+>>%EarlyLog% echo [%DATE% %TIME%] After reading cntpnt, errorlevel=%ERRORLEVEL%, cntpnt=%cntpnt%
 
 >>%LogFile% echo Get Host
 rem # retrieve workstation name
-hostname > "%ScratchFile%"
-set /p pc_name=<"%ScratchFile%"
+>>%EarlyLog% echo [%DATE% %TIME%] Before hostname
+hostname > a
+>>%EarlyLog% echo [%DATE% %TIME%] After hostname, errorlevel=%ERRORLEVEL%
+set /p pc_name=<a
+>>%EarlyLog% echo [%DATE% %TIME%] After reading pc_name, errorlevel=%ERRORLEVEL%, pc_name=%pc_name%
 
 >>%LogFile% echo Get ip
 rem # retrieve workstation ip
-set "ip="
-FOR /F "TOKENS=1,2 DELIMS=:" %%A IN ('ipconfig ^| findstr /C:IPv4') DO if not defined ip set "ip=%%B"
-for /l %%a in (1,1,150) do if "!ip:~0,1!"==" " set "ip=!ip:~1!"
+>>%EarlyLog% echo [%DATE% %TIME%] Before ipconfig IPv4 lookup
+ipconfig | findstr /C:IPv4 > a
+>>%EarlyLog% echo [%DATE% %TIME%] After ipconfig IPv4 lookup, errorlevel=%ERRORLEVEL%
+FOR /F "TOKENS=1,2 DELIMS=:" %%A IN ('type a') DO @<nul set /p "=%%B " > a
+>>%EarlyLog% echo [%DATE% %TIME%] After IP parse rewrite to a, errorlevel=%ERRORLEVEL%
+set /p ip=<a
+>>%EarlyLog% echo [%DATE% %TIME%] After reading ip, errorlevel=%ERRORLEVEL%, ip=%ip%
 
 >>%LogFile% echo Get Operation Type
 rem # retrieve operation mode
-findstr /C:ACCESS_DCO C:\CNTRLPTS\dc.ini > "%ScratchFile%"
-set /p isDCO=<"%ScratchFile%"
+>>%EarlyLog% echo [%DATE% %TIME%] Before reading ACCESS_DCO from dc.ini
+findstr /C:ACCESS_DCO C:\CNTRLPTS\dc.ini > a
+>>%EarlyLog% echo [%DATE% %TIME%] After findstr ACCESS_DCO, errorlevel=%ERRORLEVEL%
+set /p isDCO=<a
+>>%EarlyLog% echo [%DATE% %TIME%] After reading isDCO, errorlevel=%ERRORLEVEL%, isDCO=%isDCO%
 
 >>%LogFile% echo Get Webcam Availability
 rem # retrieve operation mode
-findstr /C:CAM_ENABLED C:\CNTRLPTS\dc.ini > "%ScratchFile%"
-set /p hasCam=<"%ScratchFile%"
+>>%EarlyLog% echo [%DATE% %TIME%] Before reading CAM_ENABLED from dc.ini
+findstr /C:CAM_ENABLED C:\CNTRLPTS\dc.ini > a
+>>%EarlyLog% echo [%DATE% %TIME%] After findstr CAM_ENABLED, errorlevel=%ERRORLEVEL%
+set /p hasCam=<a
+>>%EarlyLog% echo [%DATE% %TIME%] After reading hasCam, errorlevel=%ERRORLEVEL%, hasCam=%hasCam%
 
 >>%LogFile% echo Read Config
 rem # retrieve ftp info
-findstr /C:REMOTE_SERVER_IP C:\CNTRLPTS\Util\psftpSetting.txt > "%ScratchFile%"
-set /p x=<"%ScratchFile%"
+>>%EarlyLog% echo [%DATE% %TIME%] Before reading REMOTE_SERVER_IP from psftpSetting.txt
+findstr /C:REMOTE_SERVER_IP C:\CNTRLPTS\Util\psftpSetting.txt > a
+>>%EarlyLog% echo [%DATE% %TIME%] After findstr REMOTE_SERVER_IP, errorlevel=%ERRORLEVEL%
+set /p x=<a
+>>%EarlyLog% echo [%DATE% %TIME%] After reading REMOTE_SERVER_IP line, errorlevel=%ERRORLEVEL%, x=%x%
 
 rem # modify server ip
-set dt=%yyyy%_%mm%_%dd%__%hh%_%mi%_%ss%
+set dt=%DATE:~6,4%_%DATE:~3,2%_%DATE:~0,2%__%TIME:~0,2%_%TIME:~3,2%_%TIME:~6,2%
+set dt=%dt: =0%
+>>%EarlyLog% echo [%DATE% %TIME%] Computed dt=%dt%
 >>%LogFile% echo current date: %dt%
 set fromdt=2023_10_30__16_03_00
 >>%LogFile% echo Using new server ip from %fromdt%
 if %dt% gtr %fromdt% (
 set x=%x:uatint=uat.int%
 )
+>>%EarlyLog% echo [%DATE% %TIME%] After server ip date adjustment, x=%x%
 echo using server ip: %x%
 rem #
 
-@echo %x:~17% > "%ScratchFile%"
-set /p ftphost=<"%ScratchFile%"
-findstr /C:REMOTE_USER C:\CNTRLPTS\Util\psftpSetting.txt > "%ScratchFile%"
-set /p x=<"%ScratchFile%"
+@echo %x:~17% > a
+>>%EarlyLog% echo [%DATE% %TIME%] After writing ftphost to a, errorlevel=%ERRORLEVEL%
+set /p ftphost=<a
+>>%EarlyLog% echo [%DATE% %TIME%] After reading ftphost, errorlevel=%ERRORLEVEL%, ftphost=%ftphost%
+findstr /C:REMOTE_USER C:\CNTRLPTS\Util\psftpSetting.txt > a
+>>%EarlyLog% echo [%DATE% %TIME%] After findstr REMOTE_USER, errorlevel=%ERRORLEVEL%
+set /p x=<a
+>>%EarlyLog% echo [%DATE% %TIME%] After reading REMOTE_USER line, errorlevel=%ERRORLEVEL%, x=%x%
 rem # modify server user
 if %dt% gtr %fromdt% (
 set x=%x:2=1%
 )
 rem #
-@echo %x:~12% > "%ScratchFile%"
-set /p ftpuser=<"%ScratchFile%"
+@echo %x:~12% > a
+>>%EarlyLog% echo [%DATE% %TIME%] After writing ftpuser to a, errorlevel=%ERRORLEVEL%
+set /p ftpuser=<a
 for /l %%a in (1,1,150) do if "!ftpuser:~-1!"==" " set ftpuser=!ftpuser:~0,-1!
-findstr /C:REMOTE_KEY C:\CNTRLPTS\Util\psftpSetting.txt > "%ScratchFile%"
-set /p x=<"%ScratchFile%"
+>>%EarlyLog% echo [%DATE% %TIME%] After reading ftpuser, errorlevel=%ERRORLEVEL%, ftpuser=%ftpuser%
+findstr /C:REMOTE_KEY C:\CNTRLPTS\Util\psftpSetting.txt > a
+>>%EarlyLog% echo [%DATE% %TIME%] After findstr REMOTE_KEY, errorlevel=%ERRORLEVEL%
+set /p x=<a
+>>%EarlyLog% echo [%DATE% %TIME%] After reading REMOTE_KEY line, errorlevel=%ERRORLEVEL%
 rem # modify server key
 if %dt% gtr %fromdt% (
 set x=%x:2=1%
 )
 rem # 
-@echo %x:~11% > "%ScratchFile%"
-set /p ftpkey=<"%ScratchFile%"
-del /q "%ScratchFile%" 2>nul
+@echo %x:~11% > a
+>>%EarlyLog% echo [%DATE% %TIME%] After writing ftpkey to a, errorlevel=%ERRORLEVEL%
+set /p ftpkey=<a
+>>%EarlyLog% echo [%DATE% %TIME%] After reading ftpkey, errorlevel=%ERRORLEVEL%, ftpkey=%ftpkey%
+del /q a
+>>%EarlyLog% echo [%DATE% %TIME%] After deleting scratch file a, errorlevel=%ERRORLEVEL%
 
 set sFtpPath=C:\CNTRLPTS\Util\sftp\psftp
-set tempFtpScript=C:\CNTRLPTS\Util\sftp\%RunId%.ftp
-set ActnFilePath=C:\CNTRLPTS\Util\sftp\%pc_name%_%RunId%.updateActiveXLog
+set tempFtpScript=C:\CNTRLPTS\Util\sftp\%yyyy%%mm%%dd%%hh%%mi%.ftp
+set ActnFilePath=C:\CNTRLPTS\Util\sftp\%pc_name%_%yyyy%%mm%%dd%.updateActiveXLog
 set AwsFilePath=C:\CNTRLPTS\Util\sftp\alwaysYes.txt
 set sFtpKeyPath=C:\CNTRLPTS\Util\sftp\%ftpkey%
 set ActnUploadDir=/Log/
+>>%EarlyLog% echo [%DATE% %TIME%] SFTP variables resolved: sFtpPath=%sFtpPath%, tempFtpScript=%tempFtpScript%, ActnFilePath=%ActnFilePath%
 
 rem cd %sFtpPath%
 >>%LogFile% echo Call ftp for update log
@@ -207,12 +288,12 @@ rem ############ Finish Daily ActiveX Log ################
 rem ############ Core Update ActiveX ################
 
 set tempVerNumFile=C:\CNTRLPTS\Util\Version.txt
-set GetVerNumScript=C:\CNTRLPTS\Util\sftp\%RunId%_getVersionNum.ftp
-set GetDllScript=C:\CNTRLPTS\Util\sftp\%RunId%_getLatestDll.ftp
-set GetOctScript=C:\CNTRLPTS\Util\sftp\%RunId%_getLatestOct.ftp
-set tempBakPath=C:\CNTRLPTS\Util\sftp\temp\%RunId%\bak\
-set tempDllPath=C:\CNTRLPTS\Util\sftp\temp\%RunId%\dll\
-set tempOctPath=C:\CNTRLPTS\Util\sftp\temp\%RunId%\oct\
+set GetVerNumScript=C:\CNTRLPTS\Util\sftp\getVersionNum.ftp
+set GetDllScript=C:\CNTRLPTS\Util\sftp\getLatestDll.ftp
+set GetOctScript=C:\CNTRLPTS\Util\sftp\getLatestOct.ftp
+set tempBakPath=C:\CNTRLPTS\Util\sftp\temp\bak\
+set tempDllPath=C:\CNTRLPTS\Util\sftp\temp\dll\
+set tempOctPath=C:\CNTRLPTS\Util\sftp\temp\oct\
 
 rem cd ..
 if EXIST %tempVerNumFile% (
@@ -322,6 +403,4 @@ GOTO END
 >>%LogFile% net start "BridgeServiceForDCS"
 >>%LogFile% echo End
 >>%LogFile% echo 
-del /q "%ScratchFile%" 2>nul
-if defined RunId rmdir /s /q "C:\CNTRLPTS\Util\sftp\temp\%RunId%" 2>nul
-popd
+>>%EarlyLog% echo [%DATE% %TIME%] Reached END label, errorlevel=%ERRORLEVEL%
