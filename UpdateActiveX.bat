@@ -1,56 +1,41 @@
 @echo off
-setlocal enabledelayedexpansion
+setlocal EnableExtensions EnableDelayedExpansion
 
 rem ############ Start Clean Temp Files ################
-cd %~dp0
-call %~d0
+set "BootstrapLog=C:\CNTRLPTS\Util\log\activeXDaily_startup.log"
+if not exist "C:\CNTRLPTS\Util\log\" mkdir "C:\CNTRLPTS\Util\log\" 2>nul
+>>"%BootstrapLog%" echo [%DATE% %TIME%] Starting %~nx0 from "%CD%" as %USERNAME%
+pushd "%~dp0" || (
+	>>"%BootstrapLog%" echo [%DATE% %TIME%] ERROR: failed to change to script folder "%~dp0".
+	exit /b 1
+)
+set "ScratchFile=C:\CNTRLPTS\Util\log\UpdateActiveX_%COMPUTERNAME%_%RANDOM%_%RANDOM%.tmp"
 del .\sftp\temp\* /S /Q
 for /d %%i in (.\sftp\temp\*) do rmdir /s /q "%%i" 
 rem ############ Finish Clean Temp Files ################
 
 rem ############ Start Workstation Logging ################
 
-rem # retrieve current date
-FOR /F "TOKENS=1,2 DELIMS= " %%A IN ('DATE/T') DO (
-	set x=%%A
-	set y=%%B
+rem # retrieve current date/time in a locale-independent format
+for /f "tokens=1-7" %%A in ('powershell -NoProfile -ExecutionPolicy Bypass -Command "Get-Date -Format 'yyyy MM dd HH mm ss yyyyMMdd'" 2^>nul') do (
+	set "yyyy=%%A"
+	set "mm=%%B"
+	set "dd=%%C"
+	set "hh=%%D"
+	set "mi=%%E"
+	set "ss=%%F"
+	set "yyyymmdd=%%G"
 )
-echo %x% | findstr /C:/ > a
-set /p d1=<a
-echo %y% | findstr /C:/ > a
-set /p d2=<a
-if not x%d1%==x (
-	set d=%d1%
+if not defined yyyymmdd (
+	>>"%BootstrapLog%" echo [%DATE% %TIME%] ERROR: failed to read current date/time.
+	exit /b 1
 )
-if not x%d2%==x (
-	set d=%d2%
-)
-
-@echo %d% > a
-FOR /F "TOKENS=1,2,3 eol=/ DELIMS=/ " %%A IN ('type a') DO (
-	set dd=%%A
-	set mm=%%B
-	set yyyy=%%C
-)
-
-set mx=%mm:/0=/%
-set mx=%mm:~1%
-set dx=%dd:/0=/%
-set dx=%dd:~1%
-
-if %mm% gtr 9 (
-	set mx=%mm%
-)
-if %dd% gtr 9 (
-	set dx=%dd%
-)
-
-rem # retrieve current time
-FOR /F "TOKENS=1 eol=: DELIMS=: " %%A IN ('TIME/T') DO SET hh=%%A
-FOR /F "TOKENS=2 eol=: DELIMS=: " %%A IN ('TIME/T') DO SET mi=%%A
+set /a mx=1%mm%-100
+set /a dx=1%dd%-100
 
 set LogFile=C:\CNTRLPTS\Util\log\activeXDaily_%yyyy%%mm%%dd%.log
 >>%LogFile% echo 
+>>%LogFile% echo [%DATE% %TIME%] Startup completed. Scratch file: %ScratchFile%
 
 >>%LogFile% echo Get current version
 
@@ -59,38 +44,37 @@ set /p ver=<C:\CNTRLPTS\Version.txt
 
 >>%LogFile% echo Get Control Point
 rem # retrieve control point code
-findstr /C:CNTRL_PT_CD C:\CNTRLPTS\dc.ini > a
-set /p cntpnt=<a
+findstr /C:CNTRL_PT_CD C:\CNTRLPTS\dc.ini > "%ScratchFile%"
+set /p cntpnt=<"%ScratchFile%"
 
 >>%LogFile% echo Get Host
 rem # retrieve workstation name
-hostname > a
-set /p pc_name=<a
+hostname > "%ScratchFile%"
+set /p pc_name=<"%ScratchFile%"
 
 >>%LogFile% echo Get ip
 rem # retrieve workstation ip
-ipconfig | findstr /C:IPv4 > a
-FOR /F "TOKENS=1,2 DELIMS=:" %%A IN ('type a') DO @<nul set /p "=%%B " > a
-set /p ip=<a
+set "ip="
+FOR /F "TOKENS=1,2 DELIMS=:" %%A IN ('ipconfig ^| findstr /C:IPv4') DO if not defined ip set "ip=%%B"
+for /l %%a in (1,1,150) do if "!ip:~0,1!"==" " set "ip=!ip:~1!"
 
 >>%LogFile% echo Get Operation Type
 rem # retrieve operation mode
-findstr /C:ACCESS_DCO C:\CNTRLPTS\dc.ini > a
-set /p isDCO=<a
+findstr /C:ACCESS_DCO C:\CNTRLPTS\dc.ini > "%ScratchFile%"
+set /p isDCO=<"%ScratchFile%"
 
 >>%LogFile% echo Get Webcam Availability
 rem # retrieve operation mode
-findstr /C:CAM_ENABLED C:\CNTRLPTS\dc.ini > a
-set /p hasCam=<a
+findstr /C:CAM_ENABLED C:\CNTRLPTS\dc.ini > "%ScratchFile%"
+set /p hasCam=<"%ScratchFile%"
 
 >>%LogFile% echo Read Config
 rem # retrieve ftp info
-findstr /C:REMOTE_SERVER_IP C:\CNTRLPTS\Util\psftpSetting.txt > a
-set /p x=<a
+findstr /C:REMOTE_SERVER_IP C:\CNTRLPTS\Util\psftpSetting.txt > "%ScratchFile%"
+set /p x=<"%ScratchFile%"
 
 rem # modify server ip
-set dt=%DATE:~6,4%_%DATE:~3,2%_%DATE:~0,2%__%TIME:~0,2%_%TIME:~3,2%_%TIME:~6,2%
-set dt=%dt: =0%
+set dt=%yyyy%_%mm%_%dd%__%hh%_%mi%_%ss%
 >>%LogFile% echo current date: %dt%
 set fromdt=2023_10_30__16_03_00
 >>%LogFile% echo Using new server ip from %fromdt%
@@ -100,32 +84,32 @@ set x=%x:uatint=uat.int%
 echo using server ip: %x%
 rem #
 
-@echo %x:~17% > a
-set /p ftphost=<a
-findstr /C:REMOTE_USER C:\CNTRLPTS\Util\psftpSetting.txt > a
-set /p x=<a
+@echo %x:~17% > "%ScratchFile%"
+set /p ftphost=<"%ScratchFile%"
+findstr /C:REMOTE_USER C:\CNTRLPTS\Util\psftpSetting.txt > "%ScratchFile%"
+set /p x=<"%ScratchFile%"
 rem # modify server user
 if %dt% gtr %fromdt% (
 set x=%x:2=1%
 )
 rem #
-@echo %x:~12% > a
-set /p ftpuser=<a
+@echo %x:~12% > "%ScratchFile%"
+set /p ftpuser=<"%ScratchFile%"
 for /l %%a in (1,1,150) do if "!ftpuser:~-1!"==" " set ftpuser=!ftpuser:~0,-1!
-findstr /C:REMOTE_KEY C:\CNTRLPTS\Util\psftpSetting.txt > a
-set /p x=<a
+findstr /C:REMOTE_KEY C:\CNTRLPTS\Util\psftpSetting.txt > "%ScratchFile%"
+set /p x=<"%ScratchFile%"
 rem # modify server key
 if %dt% gtr %fromdt% (
 set x=%x:2=1%
 )
 rem # 
-@echo %x:~11% > a
-set /p ftpkey=<a
-del /q a
+@echo %x:~11% > "%ScratchFile%"
+set /p ftpkey=<"%ScratchFile%"
+del /q "%ScratchFile%" 2>nul
 
 set sFtpPath=C:\CNTRLPTS\Util\sftp\psftp
-set tempFtpScript=C:\CNTRLPTS\Util\sftp\%yyyy%%mm%%dd%%hh%%mi%.ftp
-set ActnFilePath=C:\CNTRLPTS\Util\sftp\%pc_name%_%yyyy%%mm%%dd%.updateActiveXLog
+set tempFtpScript=C:\CNTRLPTS\Util\sftp\%yyyy%%mm%%dd%%hh%%mi%%ss%_%RANDOM%.ftp
+set ActnFilePath=C:\CNTRLPTS\Util\sftp\%pc_name%_%yyyy%%mm%%dd%%hh%%mi%%ss%.updateActiveXLog
 set AwsFilePath=C:\CNTRLPTS\Util\sftp\alwaysYes.txt
 set sFtpKeyPath=C:\CNTRLPTS\Util\sftp\%ftpkey%
 set ActnUploadDir=/Log/
@@ -338,3 +322,5 @@ GOTO END
 >>%LogFile% net start "BridgeServiceForDCS"
 >>%LogFile% echo End
 >>%LogFile% echo 
+del /q "%ScratchFile%" 2>nul
+popd
