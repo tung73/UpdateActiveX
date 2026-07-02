@@ -10,8 +10,7 @@ pushd "%~dp0" || (
 	exit /b 1
 )
 set "ScratchFile=C:\CNTRLPTS\Util\log\UpdateActiveX_%COMPUTERNAME%_%RANDOM%_%RANDOM%.tmp"
-del .\sftp\temp\* /S /Q
-for /d %%i in (.\sftp\temp\*) do rmdir /s /q "%%i" 
+if not exist ".\sftp\temp\" mkdir ".\sftp\temp\" 2>nul
 rem ############ Finish Clean Temp Files ################
 
 rem ############ Start Workstation Logging ################
@@ -32,6 +31,7 @@ if not defined yyyymmdd (
 )
 set /a mx=1%mm%-100
 set /a dx=1%dd%-100
+set "RunId=%yyyy%%mm%%dd%%hh%%mi%%ss%_%RANDOM%"
 
 set LogFile=C:\CNTRLPTS\Util\log\activeXDaily_%yyyy%%mm%%dd%.log
 >>%LogFile% echo 
@@ -108,8 +108,8 @@ set /p ftpkey=<"%ScratchFile%"
 del /q "%ScratchFile%" 2>nul
 
 set sFtpPath=C:\CNTRLPTS\Util\sftp\psftp
-set tempFtpScript=C:\CNTRLPTS\Util\sftp\%yyyy%%mm%%dd%%hh%%mi%%ss%_%RANDOM%.ftp
-set ActnFilePath=C:\CNTRLPTS\Util\sftp\%pc_name%_%yyyy%%mm%%dd%%hh%%mi%%ss%.updateActiveXLog
+set tempFtpScript=C:\CNTRLPTS\Util\sftp\%RunId%.ftp
+set ActnFilePath=C:\CNTRLPTS\Util\sftp\%pc_name%_%RunId%.updateActiveXLog
 set AwsFilePath=C:\CNTRLPTS\Util\sftp\alwaysYes.txt
 set sFtpKeyPath=C:\CNTRLPTS\Util\sftp\%ftpkey%
 set ActnUploadDir=/Log/
@@ -207,12 +207,12 @@ rem ############ Finish Daily ActiveX Log ################
 rem ############ Core Update ActiveX ################
 
 set tempVerNumFile=C:\CNTRLPTS\Util\Version.txt
-set GetVerNumScript=C:\CNTRLPTS\Util\sftp\getVersionNum.ftp
-set GetDllScript=C:\CNTRLPTS\Util\sftp\getLatestDll.ftp
-set GetOctScript=C:\CNTRLPTS\Util\sftp\getLatestOct.ftp
-set tempBakPath=C:\CNTRLPTS\Util\sftp\temp\bak\
-set tempDllPath=C:\CNTRLPTS\Util\sftp\temp\dll\
-set tempOctPath=C:\CNTRLPTS\Util\sftp\temp\oct\
+set GetVerNumScript=C:\CNTRLPTS\Util\sftp\%RunId%_getVersionNum.ftp
+set GetDllScript=C:\CNTRLPTS\Util\sftp\%RunId%_getLatestDll.ftp
+set GetOctScript=C:\CNTRLPTS\Util\sftp\%RunId%_getLatestOct.ftp
+set tempBakPath=C:\CNTRLPTS\Util\sftp\temp\%RunId%\bak\
+set tempDllPath=C:\CNTRLPTS\Util\sftp\temp\%RunId%\dll\
+set tempOctPath=C:\CNTRLPTS\Util\sftp\temp\%RunId%\oct\
 
 rem cd ..
 if EXIST %tempVerNumFile% (
@@ -323,4 +323,5 @@ GOTO END
 >>%LogFile% echo End
 >>%LogFile% echo 
 del /q "%ScratchFile%" 2>nul
+if defined RunId rmdir /s /q "C:\CNTRLPTS\Util\sftp\temp\%RunId%" 2>nul
 popd
