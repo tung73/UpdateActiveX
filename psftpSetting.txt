@@ -1,0 +1,44 @@
+########################################
+#
+# SFTP Setting
+#
+########################################uat.int.dcs.customs.hksarg
+REMOTE_SERVER_IP=10.12.183.71
+REMOTE_USER=opintu01
+REMOTE_KEY=opintu01.ppk
+
+########################################
+#REMOTE_USER=opintp01
+REMOTE_KEY=opintu01.ppk
+
+# Batch Code File Name
+#
+########################################
+GET_VERSION_NUM_BATCH_CODE=getVersionNumBatchCode.txt
+GET_DLL_BATCH_CODE=downloadDllBatchCode.txt
+ALWAYS_YES_BATCH_CODE=alwaysYes.txt
+
+########################################
+#
+# Remote Directory
+#
+########################################
+REMOTE_FOLDER_DLL_ROOT=CNTRLPTS
+REMOTE_FOLDER_OCT_ROOT=CCS/Octopus_daily
+
+########################################
+#
+# Local Setting
+#
+########################################
+LOCAL_WORKING_BASE=C:\CNTRLPTS\Util
+LOG_FILE_FOLDER=log
+SFTP_FOLDER_BASE=sftp
+VERSION_FILE_NAME=Version.txt
+
+DLL_TEMP_SAVING_FOLDER=sftp\temp\dll
+DLL_LOCATION_PATH=C:\CNTRLPTS
+
+OCT_TEMP_SAVING_FOLDER=sftp\temp\oct
+OCT_LOCATION_PATH=C:\CCS\Octopus_daily
+
