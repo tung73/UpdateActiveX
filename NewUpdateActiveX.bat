@@ -1,3 +1,4 @@
+@>>C:\CNTRLPTS\Util\NewUpdateActiveX_called.marker echo [%DATE% %TIME%] ENTERED NewUpdateActiveX.bat user=%USERNAME% computer=%COMPUTERNAME% cmd=%CMDCMDLINE%
 @echo off
 setlocal EnableExtensions EnableDelayedExpansion
 
